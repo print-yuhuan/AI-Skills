@@ -1,0 +1,4 @@
+interface:
+  display_name: "安卓 APK 逆向修改"
+  short_description: "APK 反编译、去广告、客户端权限修改、启动排障与重打包签名"
+  default_prompt: "使用 $android-apk-rework 分析并修改指定 APK，按要求处理广告、客户端权限和启动流程，保留原包并交付已签名的修改版及验证结果。"
