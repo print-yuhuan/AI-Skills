@@ -102,6 +102,23 @@ if ($LASTEXITCODE -ne 0) { throw 'alignment verification failed' }
 
 客户端放行不保证服务端会员、下载额度、金币、令牌或完整资源改变，单独报告这些结果。
 
+### DEX 语义比对与安装警告
+
+最终包反编译后按类／方法检查指令、字段和异常处理，不只比较源文件文本。assembler 可能显式编码默认 false/null 字段，或合并相邻、相同处理器的 try 范围；只有核对相同指令覆盖和处理器顺序后才视为等价，不能全局忽略 `.catch` 或全部标签。标签重编号也须先解析控制流，不跳过真实分支变化。
+
+DEX 重组后，原包的 baseline profile 可能出现 DEX checksum 不匹配警告。曾观察到 ADB 返回非零且报告优化警告，但新 APK 实际已应用；也不能由这一现象推断其他非零返回都安装成功。先保存完整安装输出，区分优化警告与签名／解析等安装错误，再核验目标设备上的实际文件：
+
+```powershell
+& $apkAdb -s $apkSerial shell pm path $apkPackage
+# 从上述实际输出核对 base.apk 路径，再作为单独参数传入；不复用历史路径。
+& $apkAdb -s $apkSerial pull $apkInstalledBasePath $apkPulledBase
+Get-FileHash -Algorithm SHA256 -LiteralPath $apkPulledBase, $apkFinal
+```
+
+仅当适用的单 APK 安装文件摘要与目标修订相同，且签名、冷启动及当前触发验证通过，才能记录该修订已安装。split 安装须核对完整 split 集合；无权限拉取时如实记录核验限制，不以版本号或 PID 代替摘要。baseline profile 用途见 [Android 官方说明](https://developer.android.com/topic/performance/baselineprofiles/overview)。
+
+优化警告与崩溃／完整性错误分开记录。不要为消除警告默认删除 profile 或清数据；需要重建或删除优化成员时，另列补丁目的与变更清单并复测。
+
 ## 多轮返修交付索引
 
 逐款绑定输入/最终摘要、修订号、补丁记录、签名证书及该修订的实际运行结果。继承前版补丁时记录来源摘要，避免报告只写最新一处改动而丢失累计范围。覆盖当前目录前，核对现有文件是索引登记的旧产物；不覆盖用户另行加入的 APK。

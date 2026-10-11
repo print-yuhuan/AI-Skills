@@ -1,6 +1,6 @@
 # 启动、弹窗、签名自校验和闪退
 
-用于开屏等待、公告/推荐遗漏或修改版启动异常。
+用于开屏等待、公告/推荐遗漏或修改版启动异常。证书、原生完整性检查和激励回调的实操见 [integrity-and-ads.md](integrity-and-ads.md)。
 
 ## 独立推荐与广告入口
 
@@ -26,27 +26,7 @@
 
 ## 签名自校验同步
 
-重新签名前读 Manifest 注册的 provider、Application 与 native 初始化。搜索：
-
-```text
-ContentProvider.onCreate / Application.attachBaseContext
-PackageInfo.signatures / SigningInfo
-SHA-256 / Base64 / EXPECTED_CERT / checkSignature
-Process.killProcess / System.exit / Runtime.exit
-```
-
-Android 安装签名有效与应用接受证书是不同检查，后者可在 Flutter 初始化前结束进程。同步已确认的预期证书值，保留不相关检查；其他拦截按当前请求及证据处理。
-
-如果计算的是 `SHA256(certificate DER bytes)` 后用 Base64 比较，按实际签名证书摘要转换，不能计算 APK/密钥文件摘要或十六进制文本的 Base64：
-
-```python
-import base64
-expected_b64 = base64.b64encode(bytes.fromhex(certificate_sha256_hex)).decode('ascii')
-```
-
-多签名、证书历史、native 或其他算法/编码按实际实现处理。
-
-无法同步硬编码值时，定位检查方法的调用方和失败副作用，在当前需求范围内调整该检查结果或失败分支，保留后续初始化。先确认校验结果是否还用于密钥派生、资源解密或其他状态；简单返回成功可能仍导致下游失败。区分证书摘要、DEX/SO 内容摘要及整包校验，修改一处常量不代表覆盖所有入口。客户端自校验的修改也不证明服务端完整性判定已通过。
+安装签名有效与应用接受证书是不同检查。重签后主动退出先追踪 Manifest 注册的 provider、Application 与 native 初始化，再区分证书比对、内容摘要和服务端响应；不要根据退出或通用连接提示直接认定根因。摘要编码、指定常量重组装及原生返回类型核对统一见 [integrity-and-ads.md](integrity-and-ads.md)。
 
 ## DEX 的非直观失败
 
@@ -73,6 +53,8 @@ Apktool 的 `-r` 可避免不需要的资源反编译，`b --no-apk` 可获得�
 | VerifyError/Java 异常 | 查寄存器、类型、引用及异常范围 |
 | Dart 类型/空值/late 错误 | 查值类型、nullable 分支和初始化顺序 |
 | 进程存活但 Unhandled Exception 含认证错误 | 保存实际错误和阶段；同环境对照原包访客流程，单独报告服务端异常 |
+| 首页正常但“客户端完整性验证失败”或“暂时无法连接” | 追踪错误转换与显式 native 验证、配置同步；分开确认本地检查和服务端授权 |
+| 关闭广告后“正在准备”一直不结束 | 查请求编号、回调终态、订阅时序和轮询阶段；不只隐藏按钮或清 loading |
 | native SIGSEGV/栈异常 | 查边界、分支、软件栈、写屏障及 VM 栈图 |
 | x86 ARM 翻译层 SIGILL，原版也失败 | 记录限制，换兼容环境/真机，不靠修改无关渲染逻辑掩盖 |
 

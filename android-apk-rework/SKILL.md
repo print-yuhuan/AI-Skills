@@ -28,7 +28,7 @@ description: 分析并修改现有 Android APK，适用于反编译、去广告�
 | 业务在其他原生 SO | ELF 段、架构、符号、交叉引用与反汇编，必要时动态观察 |
 | Unity、React Native、加固壳、split APK | 按实际实现继续定位，不强行视为 Dart 或 Smali 业务 |
 
-同一 APK 可能同时需要修改 Android 启动层和 Flutter 业务层。看到 Flutter 不代表可以跳过 DEX：本次真实故障发生在 `ContentProvider` 启动签名检查。
+同一 APK 可能同时需要修改 Android 启动层、Flutter 业务层和原生桥接层。Flutter 包也可能在 `ContentProvider` 中校验证书，或在 native 初始化中校验包内内容。
 
 ## 交付前先查签名与启动自校验
 
@@ -36,13 +36,15 @@ description: 分析并修改现有 Android APK，适用于反编译、去广告�
 
 确认校验对象、摘要算法、编码和失败行为。如果退出由预期证书与修改版签名不一致导致，优先同步当前修改版证书的预期值，保留不相关检查。只有明确定位到其他拦截且属于当前请求时，才选择相应分支修改，不全局清空所有安全检查。
 
-DEX 常量修改通过 Smali 重新组装。**字符串等长替换并修复 checksum，仍可能破坏 `string_ids` 排序，导致 ART 拒绝加载整个 DEX。** 详见 [references/startup-popups-crashes.md](references/startup-popups-crashes.md)。
+遇到“客户端完整性验证失败”、重签后连接失败，或广告关闭后按钮一直等待，读 [references/integrity-and-ads.md](references/integrity-and-ads.md)：按调用链分开确认本地证书、内容摘要、异步回调和服务端授权，不能根据提示文字统一返回成功。
+
+DEX 常量修改通过 Smali 重新组装。**字符串等长替换并修复 checksum，仍可能破坏 `string_ids` 排序，导致 ART 拒绝加载整个 DEX。** ART 错误分流见 [references/startup-popups-crashes.md](references/startup-popups-crashes.md)。
 
 ## 从目标行为追踪到数据与判断
 
 按当前需求选择以下分支；广告、启动、公告与推荐细节读 [references/startup-popups-crashes.md](references/startup-popups-crashes.md)。
 
-- **广告**：追踪配置/响应、模型解析、缓存恢复、调度、展示与外链，优先在共享数据入口或专用展示入口处理。保留符合原类型的空列表、nullable 值或异步完成路径。检查开屏、首页、播放器、横幅、软件推荐及图片推广，避免只隐藏组件而留下遮罩和等待。
+- **广告**：追踪配置/响应、模型解析、缓存恢复、调度、展示与外链，优先在共享数据入口或专用展示入口处理。保留符合原类型的空列表、nullable 值或异步完成路径。检查开屏、首页、播放器、横幅、软件推荐及图片推广，避免只隐藏组件而留下遮罩和等待。跨 MethodChannel 的激励回调须核对请求编号及终态；广告不显示与服务端额度发放分别验收，细节见 [references/integrity-and-ads.md](references/integrity-and-ads.md)。
 - **VIP 与视频权限**：追踪用户状态、列表/详情模型、真实权限谓词、播放地址响应、试看计时和暂停分支。区分“允许播放”“需要购买”“处于试看”的 bool 语义，按调用方判断返回值。按 [references/membership-playback.md](references/membership-playback.md) 核对目标卡配置、权限字段和实际资源；最高卡数值已确认、客户端放行、服务端权益及完整播放分别记证据，不能互相替代。
 - **开屏等待**：画清必要初始化、就绪/错误状态、广告/倒计时和导航的顺序。仅取消额外等待，不提前销毁控制器或越过尚未完成的初始化。缩短轮询时检查未就绪分支是否递减计数、提前取消或忙循环。
 - **入场公告与软件推荐**：分别查公告服务、推荐服务和缓存入口。文本可能来自服务器，结合模型、路由和弹窗创建定位。覆盖冷启动及覆盖安装后的缓存触发场景。
